@@ -1,0 +1,3 @@
+{"map1":{"grid":["S...V",".##..","..V.D",".#...","G..D."],"medkits":null,"max_steps":30,"victims":[{"value":3,"needs_medkit":false},{"value":1,"needs_medkit":false}]},
+"map2":{"grid":["S....V",".##.#.","...V..",".#..#.","V#.G..","....DM"],"medkits":1,"max_steps":45,"victims":[{"value":3,"needs_medkit":true},{"value":2,"needs_medkit":true},{"value":1,"needs_medkit":false}]},
+"map3":{"grid":["S...#..",".##.#.V",".V.D.#.",".#.##..",".#M..D.","..#..V.",".G.#..V"],"medkits":2,"max_steps":140,"victims":[{"value":3,"needs_medkit":true},{"value":1,"needs_medkit":false},{"value":2,"needs_medkit":true},{"value":2,"needs_medkit":true}]}}
