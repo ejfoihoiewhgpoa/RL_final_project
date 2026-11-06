@@ -10,7 +10,7 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
-from MDP import RescueEnv, MOVES
+from rescue_mission import RescueEnv, ACTION_NAMES
 
 GAMMA = 0.99
 
@@ -22,7 +22,7 @@ def replay(map_name, mode, actions, reward_cfg=None):
     G, Gd, deliver, haz = 0.0, 0.0, {}, 0
     for t, name in enumerate(actions, start=1):
         before = env.mask
-        _, r, te, tr, _ = env.step(MOVES.index(name))
+        _, r, te, tr, _ = env.step(ACTION_NAMES.index(name))
         G += r
         Gd += (GAMMA ** (t - 1)) * r
         new = env.mask ^ before

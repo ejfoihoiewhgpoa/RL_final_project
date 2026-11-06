@@ -1,5 +1,8 @@
 import json
 import os
+import warnings
+from collections import deque
+
 import numpy as np
 import gymnasium as gym
 from gymnasium import spaces
@@ -8,7 +11,11 @@ UP, DOWN, LEFT, RIGHT, PICKUP, DROP = range(6)
 ACTION_NAMES = ["Lên", "Xuống", "Trái", "Phải", "Pickup", "Drop"]
 MOVES = {UP: (-1, 0), DOWN: (1, 0), LEFT: (0, -1), RIGHT: (0, 1)}
 
-DEFAULT_MAP_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "D:/reinforcement_learning/final_project/1/srcmaps.json")
+# maps.json nằm cùng thư mục với file này (không hardcode đường dẫn tuyệt đối)
+DEFAULT_MAP_FILE = os.path.join(os.path.dirname(os.path.abspath(__file__)), "maps.json")
+
+# Ký hiệu hiển thị nạn nhân: 0-9 rồi a-z (tránh lệch grid khi có >= 10 nạn nhân)
+VICTIM_SYMBOLS = "0123456789abcdefghijklmnopqrstuvwxyz"
 
 # Tham số reward (đổi ở đây để làm thí nghiệm reward)
 DEFAULT_REWARD = dict(
@@ -37,6 +44,7 @@ class RescueEnv(gym.Env):
                      'B' = ưu tiên giá trị cao (R_i = rescue_base * value_i)
         """
         super().__init__()
+        assert render_mode in (None, "ansi"), "render_mode chỉ hỗ trợ None hoặc 'ansi'"
         cfg = load_maps(map_file)[map_name] if isinstance(map_name, str) else map_name
         self.map_name = map_name if isinstance(map_name, str) else "custom"
         self.reward_mode = reward_mode
@@ -56,16 +64,24 @@ class RescueEnv(gym.Env):
         for r, row in enumerate(self.layout):
             assert len(row) == self.W, "các hàng của grid phải cùng độ dài"
             for c, ch in enumerate(row):
-                if ch == "#":   self.walls.add((r, c))
-                elif ch == "D": self.hazards.add((r, c))
-                elif ch == "S": self.start = (r, c)
-                elif ch == "G": self.base = (r, c)
+                if ch == "#":
+                    self.walls.add((r, c))
+                elif ch == "D":
+                    self.hazards.add((r, c))
+                elif ch == "S":
+                    assert self.start is None, "mỗi map chỉ được có đúng 1 ô S"
+                    self.start = (r, c)
+                elif ch == "G":
+                    assert self.base is None, "mỗi map chỉ được có đúng 1 ô G"
+                    self.base = (r, c)
                 elif ch == "M":
                     assert self.supply is None, "mỗi map chỉ được có tối đa 1 ô M"
                     self.supply = (r, c)
-                elif ch == "V": self.victim_pos[(r, c)] = len(self.victim_pos)
+                elif ch == "V":
+                    self.victim_pos[(r, c)] = len(self.victim_pos)
         assert self.start and self.base, "map cần có S và G"
         self.N = len(self.victim_pos)
+        assert self.N >= 1, "map cần có ít nhất 1 nạn nhân V"
 
         # ---- thuộc tính nạn nhân (tùy chọn trong JSON) ----
         self.victims = cfg.get("victims") or [
@@ -74,11 +90,21 @@ class RescueEnv(gym.Env):
 
         # ---- không gian state / action ----
         self.K = self.init_med + (1 if self.supply else 0)   # medkit tối đa
+        need = sum(1 for v in self.victims if v["needs_medkit"])
+        if need > self.K:
+            warnings.warn(f"{self.map_name}: cần {need} medkit nhưng tối đa chỉ có "
+                          f"{self.K} -> không thể cứu hết nạn nhân.")
+        # GIỮ NGUYÊN công thức cũ (supply_used luôn có 2 giá trị) để Q-table cũ vẫn khớp
         self.n_states = (self.H * self.W * (2 ** self.N)
                          * (self.N + 1) * (self.K + 1) * 2)
         self.observation_space = spaces.Discrete(self.n_states)
         self.action_space = spaces.Discrete(6)
         self.n_actions = 6
+
+        # khởi tạo trạng thái để các hàm gọi trước reset() không bị lỗi thiếu thuộc tính
+        self._load(dict(pos=self.start, mask=0, carry=0,
+                        med=self.init_med, supply_used=0))
+        self.t = 0
 
     # ------------------------------------------------------------------
     def _encode(self):
@@ -102,6 +128,10 @@ class RescueEnv(gym.Env):
         return dict(pos=self.pos, mask=self.mask, carry=self.carry,
                     med=self.med, supply_used=self.supply_used)
 
+    def _load(self, d):
+        self.pos, self.mask, self.carry = tuple(d["pos"]), d["mask"], d["carry"]
+        self.med, self.supply_used = d["med"], d["supply_used"]
+
     def _rescue_reward(self, i):
         if self.reward_mode == "B":
             return self.R["rescue_base"] * self.victims[i]["value"]
@@ -116,11 +146,8 @@ class RescueEnv(gym.Env):
     # ------------------------------------------------------------------
     def reset(self, seed=None, options=None):
         super().reset(seed=seed)
-        self.pos = self.start
-        self.mask = 0
-        self.carry = 0
-        self.med = self.init_med
-        self.supply_used = 0
+        self._load(dict(pos=self.start, mask=0, carry=0,
+                        med=self.init_med, supply_used=0))
         self.t = 0
         return self._encode(), self.state_info()
 
@@ -182,6 +209,7 @@ class RescueEnv(gym.Env):
         return acts
 
     def render(self):
+        carried = self.carry - 1 if self.carry > 0 else None
         rows = []
         for r in range(self.H):
             line = ""
@@ -189,7 +217,10 @@ class RescueEnv(gym.Env):
                 ch = self.layout[r][c]
                 if ch == "V":
                     i = self.victim_pos[(r, c)]
-                    ch = "." if (self.mask >> i) & 1 else str(i)
+                    if (self.mask >> i) & 1 or i == carried:
+                        ch = "."                       # đã cứu hoặc đang được bế
+                    else:
+                        ch = VICTIM_SYMBOLS[i] if i < len(VICTIM_SYMBOLS) else "?"
                 elif ch == "M" and self.supply_used:
                     ch = "."
                 elif ch == "S":
@@ -207,31 +238,32 @@ class RescueEnv(gym.Env):
     # ------------------------------------------------------------------
     def optimal_steps(self):
         """BFS trên không gian state: số bước ít nhất để cứu đủ (None nếu không thể).
-        Dùng để chọn max_steps và kiểm tra map có lời giải."""
-        from collections import deque
-        self.reset()
-        start = self._encode()
-        dist = {start: 0}
-        q = deque([start])
-        saved = (self.pos, self.mask, self.carry, self.med, self.supply_used, self.t)
-        while q:
-            s = q.popleft()
-            for a in range(6):
-                d = self.decode(s)
-                self.pos, self.mask, self.carry = d["pos"], d["mask"], d["carry"]
-                self.med, self.supply_used, self.t = d["med"], d["supply_used"], 0
-                s2, _, term, _, _ = self.step(a)
-                if s2 == s:
-                    continue
-                if term:
-                    best = dist[s] + 1
-                    self.pos, self.mask, self.carry, self.med, self.supply_used, self.t = saved
-                    return best
-                if s2 not in dist:
-                    dist[s2] = dist[s] + 1
-                    q.append(s2)
-        self.pos, self.mask, self.carry, self.med, self.supply_used, self.t = saved
-        return None
+        Dùng để chọn max_steps và kiểm tra map có lời giải.
+        Không làm thay đổi trạng thái hiện tại của env."""
+        saved = (self.state_info(), self.t)
+        try:
+            self._load(dict(pos=self.start, mask=0, carry=0,
+                            med=self.init_med, supply_used=0))
+            start = self._encode()
+            dist = {start: 0}
+            q = deque([start])
+            while q:
+                s = q.popleft()
+                for a in range(6):
+                    self._load(self.decode(s))
+                    self.t = 0
+                    s2, _, term, _, _ = self.step(a)
+                    if s2 == s:
+                        continue
+                    if term:
+                        return dist[s] + 1
+                    if s2 not in dist:
+                        dist[s2] = dist[s] + 1
+                        q.append(s2)
+            return None
+        finally:
+            self._load(saved[0])
+            self.t = saved[1]
 
 
 if __name__ == "__main__":
@@ -239,13 +271,19 @@ if __name__ == "__main__":
     print("== State / action space, lời giải tối ưu ==")
     for name in maps:
         e = RescueEnv(name)
+        k = e.optimal_steps()
         print(f"{name}: grid {e.H}x{e.W}, N={e.N}, K_max={e.K}, |S|={e.n_states}, "
-              f"|A|={e.n_actions}, max_steps={e.max_steps}, tối thiểu={e.optimal_steps()} bước")
+              f"|A|={e.n_actions}, max_steps={e.max_steps}, "
+              f"tối thiểu={k if k is not None else 'KHÔNG GIẢI ĐƯỢC'} bước")
+        if k is not None and k > e.max_steps:
+            print(f"  [!] {name}: max_steps ({e.max_steps}) < số bước tối thiểu ({k})")
 
+    # Test encode/decode (có seed để tái lập)
     e = RescueEnv("map3")
     e.reset(seed=0)
+    rng = np.random.default_rng(0)
     for _ in range(300):
-        s, *_ = e.step(e.action_space.sample())
+        s, *_ = e.step(int(rng.integers(e.n_actions)))
         assert e.decode(s) == e.state_info()
     print("encode/decode OK")
 
@@ -255,9 +293,10 @@ if __name__ == "__main__":
         rets, saved = [], []
         for ep in range(200):
             e.reset(seed=ep)
+            rng = np.random.default_rng(ep)
             done, G = False, 0
             while not done:
-                _, r, te, tr, _ = e.step(e.action_space.sample())
+                _, r, te, tr, _ = e.step(int(rng.integers(e.n_actions)))
                 G += r
                 done = te or tr
             rets.append(G)

@@ -6,7 +6,7 @@ from concurrent.futures import ProcessPoolExecutor, as_completed
 
 import numpy as np
 
-from MDP import RescueEnv
+from rescue_mission import RescueEnv
 from algorthm import QLearningAgent, MonteCarloAgent, evaluate, rollout
 
 # số episode mặc định cho mỗi map (dùng chung cho cả hai thuật toán để so sánh công bằng)

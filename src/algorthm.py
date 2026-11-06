@@ -1,7 +1,7 @@
 from collections import deque
 import numpy as np
 
-from src.MDP import RescueEnv, ACTION_NAMES
+from MDP import RescueEnv, MOVES
 
 def eps_greedy(Q, s, eps, rng, n_actions):
     if rng.random() < eps:
@@ -201,13 +201,13 @@ def rollout(env, Q, max_len=None, verbose=False):
         a = int(np.argmax(Q[s]))
         before = env.mask
         s, r, te, tr, _ = env.step(a)
-        actions.append(ACTION_NAMES[a]); path.append(env.pos); G += r
+        actions.append(MOVES[a]); path.append(env.pos); G += r
         new = env.mask ^ before
         if new:
             order.append(new.bit_length() - 1)
         done = te or tr
         if verbose:
-            env.render(); print("-> action:", ACTION_NAMES[a], "reward:", r, "\n")
+            env.render(); print("-> action:", MOVES[a], "reward:", r, "\n")
     return dict(path=path, actions=actions, order=order, total_return=G,
                 steps=len(actions), terminated=bool(te))
 
