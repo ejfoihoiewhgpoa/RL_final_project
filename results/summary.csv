@@ -1,0 +1,13 @@
+map,reward,mode,algo,seeds,episodes,n_states,greedy_return,success_rate,rescued,steps,train_return_last5pct,train_time_s
+map1,base,A,Monte Carlo,5,20000,600,-15.0 ± 0.0,0%,1.00,30.0,-21.2 ± 0.4,6
+map1,base,A,Q-learning,5,20000,600,52.8 ± 1.6,100%,2.00,27.2,37.9 ± 6.9,8
+map1,base,B,Monte Carlo,5,20000,600,-7.2 ± 47.4,20%,1.20,28.8,-0.9 ± 36.4,6
+map1,base,B,Q-learning,5,20000,600,76.0 ± 0.0,100%,2.00,24.0,72.0 ± 0.2,8
+map2,base,A,Monte Carlo,5,50000,6912,-27.0 ± 6.0,0%,1.20,45.0,-33.8 ± 5.6,24
+map2,base,A,Q-learning,5,50000,6912,62.0 ± 0.0,100%,3.00,33.0,57.1 ± 0.0,28
+map2,base,B,Monte Carlo,5,50000,6912,-16.0 ± 5.8,0%,1.20,45.0,-23.0 ± 8.0,25
+map2,base,B,Q-learning,5,50000,6912,92.0 ± 0.0,100%,3.00,33.0,87.1 ± 0.1,28
+map3,base,A,Monte Carlo,5,60000,31360,-217.6 ± 165.2,0%,0.00,140.0,-234.4 ± 54.5,93
+map3,base,A,Q-learning,5,60000,31360,1.0 ± 0.0,100%,4.00,109.0,-16.3 ± 0.4,121
+map3,base,B,Monte Carlo,5,60000,31360,-215.6 ± 166.2,0%,0.20,140.0,-246.4 ± 67.5,62
+map3,base,B,Q-learning,5,60000,31360,41.0 ± 0.0,100%,4.00,109.0,24.0 ± 0.1,116
