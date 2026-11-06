@@ -1,4 +1,5 @@
-# Virtual environments 
+
+# Virtual environments
 .venv/
 .venv-*/
 venv/
@@ -20,6 +21,15 @@ build/
 .vscode/
 .idea/
 
-# Bỏ qua thư mục dữ liệu
+# Dataset
 data/
 my_dataset/
+
+# Model files and experimental results
+*.pkl
+*.npy
+
+# Temporary files
+*.log
+*.tmp
+.DS_Store
