@@ -3,7 +3,7 @@ import os
 import numpy as np
 import pygame
 
-from rescue_mission import RescueEnv, ACTION_NAMES
+from rescue_mission import RescueEnv, MOVES
 from agents import QLearningAgent, evaluate
 
 EPISODES = {"map1": 20000, "map2": 50000, "map3": 60000}
@@ -75,7 +75,7 @@ class Demo:
         a = int(np.argmax(self.Q[self.s]))
         self.s, r, te, tr, _ = self.env.step(a)
         self.total += r
-        self.last_action = ACTION_NAMES[a]
+        self.last_action = MOVES[a]
         if te:
             self.done, self.status = True, "HOÀN THÀNH: đã cứu hết nạn nhân"
         elif tr:
