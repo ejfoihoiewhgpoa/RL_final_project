@@ -14,7 +14,6 @@ from rescue_mission import RescueEnv, ACTION_NAMES
 
 GAMMA = 0.99
 
-
 def replay(map_name, mode, actions, reward_cfg=None):
     """Phát lại chuỗi action; trả về return (chưa/đã chiết khấu), bước giao từng nạn nhân, bước vào ô D."""
     env = RescueEnv(map_name, reward_mode=mode, reward_cfg=reward_cfg)
@@ -33,7 +32,6 @@ def replay(map_name, mode, actions, reward_cfg=None):
         if te or tr:
             break
     return G, Gd, deliver, haz, env
-
 
 def metrics(run):
     m, ro = run["map"], run["rollout"]

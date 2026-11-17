@@ -1,5 +1,3 @@
-<<<<<<< HEAD
-
 # Virtual environments
 .venv/
 .venv-*/
@@ -70,4 +68,3 @@ my_dataset/
 *.log
 *.tmp
 .DS_Store
->>>>>>> 7550df214ac510c52d66032d79bf74ebf28c11e6

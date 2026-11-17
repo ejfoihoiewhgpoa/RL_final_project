@@ -21,10 +21,7 @@ def eps_greedy(Q, s, eps, rng, n_actions):
     best = np.flatnonzero(q == q.max())
     return int(best[0]) if len(best) == 1 else int(rng.choice(best))
 
-
-# ----------------------------------------------------------------------
 # Q-learning
-# ----------------------------------------------------------------------
 class QLearningAgent:
     def __init__(self, env, alpha=0.1, gamma=0.99,
                  eps_start=1.0, eps_end=0.05, decay_frac=0.8, seed=0):
@@ -65,10 +62,7 @@ class QLearningAgent:
     def policy(self):
         return np.argmax(self.Q, axis=1)
 
-
-# ----------------------------------------------------------------------
 # Monte Carlo control (on-policy, first-visit, epsilon-soft)
-# ----------------------------------------------------------------------
 class MonteCarloAgent:
     def __init__(self, env, gamma=0.99, eps_start=1.0, eps_end=0.05,
                  decay_frac=0.8, seed=0):
@@ -123,10 +117,7 @@ class MonteCarloAgent:
     def policy(self):
         return np.argmax(self.Q, axis=1)
 
-
-# ----------------------------------------------------------------------
 # Policy Iteration (có mô hình, chỉ nên dùng trên map nhỏ)
-# ----------------------------------------------------------------------
 def _set_state(env, s):
     d = env.decode(s)
     env.pos, env.mask, env.carry = d["pos"], d["mask"], d["carry"]
@@ -207,10 +198,7 @@ def policy_iteration(env, gamma=0.99, theta=1e-8, max_iter=200):
         Q[s] = Qm[i]
     return Q, it, n
 
-
-# ----------------------------------------------------------------------
 # Đánh giá và trích xuất đường đi
-# ----------------------------------------------------------------------
 def evaluate(env, Q, episodes=1, seed=12345):
     """Chạy policy greedy theo Q. Trả về thống kê.
     Env và policy greedy đều deterministic nên 1 episode là đủ; tăng `episodes`

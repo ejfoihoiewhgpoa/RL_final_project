@@ -17,14 +17,12 @@ ALGO_LABEL = {"qlearning": "Q-learning", "mc": "Monte Carlo"}
 ALGO_COLOR = {"qlearning": "tab:blue", "mc": "tab:orange"}
 MODE_LABEL = {"A": "Mode A (cứu gần trước)", "B": "Mode B (ưu tiên giá trị cao)"}
 
-
 def load_results(d):
     res = []
     for f in sorted(glob.glob(os.path.join(d, "*.pkl"))):
         with open(f, "rb") as fh:
             res.append(pickle.load(fh))
     return res
-
 
 def smooth(x, w):
     x = np.asarray(x, dtype=np.float64)
@@ -38,10 +36,7 @@ def smooth(x, w):
 def select(res, **kw):
     return [r for r in res if all(r[k] == v for k, v in kw.items())]
 
-
-# ----------------------------------------------------------------------
 # 1) Learning curve
-# ----------------------------------------------------------------------
 def plot_learning(res, map_name, variant, out_dir):
     modes = sorted({r["mode"] for r in res if r["map"] == map_name and r["variant"] == variant})
     if not modes:
@@ -78,10 +73,7 @@ def plot_learning(res, map_name, variant, out_dir):
     plt.close(fig)
     return path
 
-
-# ----------------------------------------------------------------------
 # 2) Trực quan hóa policy
-# ----------------------------------------------------------------------
 def draw_policy(ax, env, ro, title):
     H, W = env.H, env.W
     for r in range(H):
@@ -118,10 +110,8 @@ def draw_policy(ax, env, ro, title):
     ax.set_aspect("equal"); ax.set_xticks([]); ax.set_yticks([])
     ax.set_title(title, fontsize=9)
 
-
 def _best_run(runs):
     return max(runs, key=lambda r: (r["final"]["mean_rescued"], r["final"]["mean_return"]))
-
 
 def plot_policy(res, map_name, variant, out_dir, algo="qlearning"):
     modes = sorted({r["mode"] for r in res if r["map"] == map_name and r["variant"] == variant})
@@ -144,7 +134,6 @@ def plot_policy(res, map_name, variant, out_dir, algo="qlearning"):
     plt.close(fig)
     return path
 
-
 def plot_policy_variants(res, map_name, out_dir, mode="A", algo="qlearning"):
     variants = sorted({r["variant"] for r in res if r["map"] == map_name and r["mode"] == mode})
     cols = [(v, select(res, map=map_name, variant=v, mode=mode, algo=algo)) for v in variants]
@@ -165,10 +154,7 @@ def plot_policy_variants(res, map_name, out_dir, mode="A", algo="qlearning"):
     plt.close(fig)
     return path
 
-
-# ----------------------------------------------------------------------
 # 3) Bảng thống kê
-# ----------------------------------------------------------------------
 def summary_table(res, out_dir):
     groups = defaultdict(list)
     for r in res:
@@ -199,7 +185,6 @@ def summary_table(res, out_dir):
         print("| " + " | ".join(str(r[k]) for k in keys) + " |")
     return path
 
-
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--dir", default="results")
@@ -223,7 +208,6 @@ def main():
     for p in made:
         if p:
             print(" ", p)
-
 
 if __name__ == "__main__":
     main()

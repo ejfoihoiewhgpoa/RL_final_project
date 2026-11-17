@@ -1,32 +1,90 @@
 # Đề tài 30 – Rescue Mission nhiều nạn nhân
-## Phần 1: Mô hình MDP, môi trường và thiết kế map
 
-### 1. Mô hình hóa MDP
+Agent di chuyển trên lưới, cứu nhiều nạn nhân và đưa về điểm an toàn. Project cài đặt môi trường `gymnasium` tự viết, hai thuật toán **Monte Carlo control** và **Q-learning** (dạng bảng, không dùng DQN), cùng policy tối ưu tham chiếu để so sánh.
 
-**Môi trường**: lưới H×W, agent xuất phát ở `S`, cứu nạn nhân `V` và đưa về điểm an toàn `G`. Mỗi lần chỉ mang được 1 người. Một số nạn nhân cần medkit, medkit hữu hạn, ô `M` bổ sung đúng 1 medkit (dùng một lần). Ô `D` là ô nguy hiểm, `#` là tường.
+## 1. Cấu trúc thư mục
 
-**State**: `s = (r, c, mask, carry, med, supply_used)`
+```
+final_project/1/
+├── src/
+│   ├── rescue_mission.py     # môi trường RescueEnv (đọc map từ maps.json)
+│   ├── maps.json             # map1, map2, map3
+│   ├── agents.py             # QLearningAgent, MonteCarloAgent, Policy Iteration, evaluate, rollout
+│   ├── train.py              # huấn luyện nhiều seed / thuật toán / reward mode
+│   ├── plot_results.py       # vẽ đồ thị từ các file .pkl trong results/
+│   ├── compare_policies.py   # so sánh các policy
+│   ├── optimal_baseline.py   # policy tối ưu tham chiếu (Value Iteration)
+│   └── demo.py               # xem agent chạy hoặc tự chơi (giao diện pygame)
+├── qtables/                  # Q-table đã huấn luyện cho demo (map1_A.npy, ...)
+├── results/                  # kết quả huấn luyện (.pkl) và hình
+├── bao_cao_buoc1_MDP...      # báo cáo bước 1: mô hình MDP và thiết kế map
+├── requirements.txt
+└── README.md
+```
 
-| Biến | Miền giá trị | Ý nghĩa |
-|---|---|---|
-| (r, c) | H×W | Vị trí agent |
-| mask | 0 … 2^N − 1 | Bit i = 1 nếu nạn nhân i đã được đưa về G |
-| carry | 0 … N | 0: không mang ai; i+1: đang mang nạn nhân i |
-| med | 0 … K_max | Số medkit còn lại |
-| supply_used | {0, 1} | Ô supply đã được dùng chưa |
+## 2. Cài đặt
 
-Số state tối đa: `|S| = H·W·2^N·(N+1)·(K_max+1)·2`, với `K_max = medkits ban đầu + 1 (nếu có ô M)`.
+Yêu cầu Python 3.11.
 
-**Action** (6 action rời rạc): Lên, Xuống, Trái, Phải, Pickup, Drop.
+```
+pip install -r requirements.txt
+```
 
-- *Pickup* hợp lệ khi agent đứng trên nạn nhân i chưa cứu, đang không mang ai, và (nạn nhân i không cần medkit hoặc `med > 0`). Hiệu ứng: `carry = i+1`; nếu nạn nhân cần medkit thì `med ← med − 1`.
-- *Drop* hợp lệ khi agent đứng ở `G` và `carry > 0`. Hiệu ứng: đặt bit tương ứng trong `mask`, `carry = 0`.
-- Bước vào ô `M` lần đầu: `med ← med + 1`, `supply_used = 1` (tự động).
-- Hành động không hợp lệ (đâm tường, Pickup/Drop sai chỗ): agent đứng yên, bị phạt.
+Các thư viện chính: `numpy`, `gymnasium`, `matplotlib`, `pygame`.
 
-**Transition**: xác định (deterministic), `s' = f(s, a)`.
+## 3. Cách chạy
 
-**Reward**
+Chạy từ thư mục gốc của project.
+
+**Huấn luyện**
+
+```
+python src/train.py                                   # chạy đầy đủ (3 map)
+python src/train.py --maps map1 --seeds 3 --scale 0.2 # chạy thử nhanh
+python src/train.py --variants base low_hazard        # thêm biến thể reward
+```
+
+Mỗi job lưu 1 file `.pkl` trong `results/` để `plot_results.py` đọc.
+
+**Vẽ đồ thị**
+
+```
+python src/plot_results.py
+```
+
+**Demo và chơi thử**
+
+```
+python src/demo.py                      # agent tự chạy (map1, mode A)
+python src/demo.py --map map2 --mode B
+python src/demo.py --play               # tự mình chơi
+python src/demo.py --prepare            # huấn luyện sẵn Q-table cho mọi map/mode
+```
+
+Lần đầu chạy agent trên một map/mode, demo sẽ huấn luyện Q-learning rồi lưu vào `qtables/` (các lần sau dùng lại). Thêm `--retrain` để huấn luyện lại.
+
+| Phím | Tác dụng |
+|---|---|
+| P | đổi giữa chế độ AGENT và NGƯỜI CHƠI |
+| R | chạy lại / chơi lại |
+| A / B | đổi reward mode |
+| 1 / 2 / 3 | đổi map |
+| Mũi tên | di chuyển (chế độ người chơi) |
+| SPACE, → , ↑ / ↓ | tạm dừng, đi 1 bước, đổi tốc độ (chế độ agent) |
+| ESC | thoát |
+
+## 4. Mô hình MDP (tóm tắt)
+
+Chi tiết và lập luận xem báo cáo bước 1.
+
+- **Môi trường**: lưới H×W gồm `S` (xuất phát), `V` (nạn nhân), `G` (điểm an toàn), `D` (nguy hiểm), `M` (ô bổ sung đúng 1 medkit, dùng một lần), `#` (tường). Mỗi lần chỉ mang được 1 người; một số nạn nhân cần medkit để cứu.
+- **State**: `s = (r, c, mask, carry, med, supply_used)`
+  - `mask`: bit i = 1 nếu nạn nhân i đã được đưa về G
+  - `carry`: 0 là không mang ai, i+1 là đang mang nạn nhân i
+  - `med`: số medkit còn lại; `supply_used`: ô M đã dùng chưa
+- **Action** (6): Lên, Xuống, Trái, Phải, Pickup, Drop. Hành động không hợp lệ thì đứng yên và bị phạt.
+- **Transition**: xác định (deterministic).
+- **Reward**:
 
 | Sự kiện | Reward |
 |---|---|
@@ -36,45 +94,33 @@ Số state tối đa: `|S| = H·W·2^N·(N+1)·(K_max+1)·2`, với `K_max = med
 | Drop nạn nhân i về G | `+R_i` |
 | Cứu đủ N nạn nhân | +100 |
 
-Hai chế độ reward tạo hai policy cạnh tranh:
-- **Mode A (cứu gần trước)**: `R_i = 50` cho mọi nạn nhân.
-- **Mode B (ưu tiên giá trị cao)**: `R_i = 50 · value_i`.
+- **Hai reward mode**: Mode A (cứu gần trước) có `R_i = 50`; Mode B (ưu tiên giá trị cao) có `R_i = 50 · value_i`.
+- **Kết thúc**: *terminated* khi cứu hết nạn nhân; *truncated* khi hết `max_steps` (ô D chỉ bị phạt, không kết thúc episode). Discount γ = 0,99.
 
-**Terminal / truncation**
-- *Terminated*: `mask = 2^N − 1` (cứu hết).
-- *Truncated*: hết `max_steps`. Ô D chỉ bị phạt, không kết thúc episode.
+Giới hạn thời gian được xử lý như truncation, không đưa vào state, nên MDP gốc vẫn giữ tính Markov.
 
-**Discount**: γ = 0,99.
+## 5. Ba map
 
-### 2. Tính Markov
+| Map | Lưới | N | Medkit đầu | Nạn nhân cần medkit | Ô M | \|S\| | max_steps |
+|---|---|---|---|---|---|---|---|
+| map1 | 5×5 | 2 | – | 0 | không | 600 | 30 |
+| map2 | 6×6 | 3 | 1 | 2 | có | 6.912 | 45 |
+| map3 | 7×7 | 4 | 2 | 3 | có | 31.360 | 140 |
 
-State chứa đủ thông tin để xác định phân phối của trạng thái kế tiếp và reward:
-- `mask` cho biết ai đã được cứu, nên không cần nhớ lịch sử đường đi.
-- `carry` và `med` quyết định Pickup/Drop có hợp lệ và reward tiếp theo.
-- `supply_used` đảm bảo ô supply chỉ bổ sung đúng 1 lần.
-
-Do đó `P(s' | s, a, lịch sử) = P(s' | s, a)`. Giới hạn thời gian `max_steps` được xử lý như *truncation* (không đưa bước thời gian vào state), nên không phá tính Markov của MDP gốc.
-
-### 3. Ba map/cấu hình tăng dần độ khó
-
-| Map | Lưới | N | Medkit đầu | Nạn nhân cần medkit | Ô M | \|S\| | \|A\| | max_steps | Số bước tối thiểu |
-|---|---|---|---|---|---|---|---|---|---|
-| map1 | 5×5 | 2 | – | 0 | không | 600 | 6 | 30 | 24 |
-| map2 | 6×6 | 3 | 1 | 2 | có | 6.912 | 6 | 45 | 33 |
-| map3 | 7×7 | 4 | 2 | 3 | có | 31.360 | 6 | 140 | 105 |
-
-Ánh xạ với các setting bắt buộc của đề:
+Ánh xạ với các setting của đề:
 
 | Setting của đề | Map |
 |---|---|
-| 1. 2 nạn nhân, không giới hạn nguồn lực | map1 |
-| 2. 3–4 nạn nhân, mang 1 người/lần | map2, map3 |
-| 3. Một số nạn nhân cần medkit, medkit hữu hạn | map2, map3 |
-| 4. Ô supply bổ sung đúng 1 medkit, phải đi đường vòng | map2 (31 → 33 bước, +2); map3 có ô supply nhưng nằm trên đường tối ưu (không đi vòng) |
+| 2 nạn nhân, không giới hạn nguồn lực | map1 |
+| 3–4 nạn nhân, mang 1 người/lần | map2, map3 |
+| Một số nạn nhân cần medkit, medkit hữu hạn | map2, map3 |
+| Ô supply bổ sung 1 medkit, phải đi đường vòng | map2 (31 → 33 bước); map3 có ô supply nhưng nằm trên đường tối ưu |
 
-Số bước tối thiểu được tính bằng BFS trên không gian state (đã gồm Pickup/Drop). Ở map3, ô `D` có đường né (mở tường ô (5,4)), nên đi qua `D` là lựa chọn của policy chứ không bắt buộc.
+Ở map3, ô `D` có đường né (mở tường ô (5,4)), nên đi qua `D` là lựa chọn của policy chứ không bắt buộc.
 
-### 4. Policy tối ưu tham chiếu (Value Iteration, γ = 0,99)
+## 6. Kết quả tham chiếu
+
+**Policy tối ưu (Value Iteration, γ = 0,99)**
 
 | Map | Mode | Thứ tự cứu | Số bước | Return |
 |---|---|---|---|---|
@@ -85,108 +131,9 @@ Số bước tối thiểu được tính bằng BFS trên không gian state (đ
 | map3 | A | V1 → V2 → V3 → V0 | 109 | 191 |
 | map3 | B | V1 → V0 → V2 → V3 | 109 | 391 |
 
-Ở map2 và map3, hai mode cho thứ tự cứu khác nhau (A ưu tiên nạn nhân gần, B ưu tiên giá trị cao). Vì cả hai cứu đủ trong cùng số bước nên return chưa chiết khấu bằng nhau giữa các thứ tự; sự khác biệt chỉ thể hiện qua chiết khấu γ và thời điểm giao từng nạn nhân.
+Ở map2 và map3, hai mode cho thứ tự cứu khác nhau: mode A ưu tiên nạn nhân gần, mode B ưu tiên nạn nhân giá trị cao.
 
-### 5. Baseline ngẫu nhiên (200 episode)
-
-| Map | Return trung bình | Số nạn nhân cứu trung bình |
-|---|---|---|
-| map1 | ≈ −126 | ≈ 0,00 / 2 |
-| map2 | ≈ −185 | ≈ 0,01 / 3 |
-| map3 | ≈ −612 | ≈ 0,07 / 4 |
-
-Policy ngẫu nhiên gần như không cứu được ai, nên là mốc dưới để đánh giá Q-learning và Monte Carlo.
-=======
-# Đề tài 30 – Rescue Mission nhiều nạn nhân
-## Phần 1: Mô hình MDP, môi trường và thiết kế map
-
-### 1. Mô hình hóa MDP
-
-**Môi trường**: lưới H×W, agent xuất phát ở `S`, cứu nạn nhân `V` và đưa về điểm an toàn `G`. Mỗi lần chỉ mang được 1 người. Một số nạn nhân cần medkit, medkit hữu hạn, ô `M` bổ sung đúng 1 medkit (dùng một lần). Ô `D` là ô nguy hiểm, `#` là tường.
-
-**State**: `s = (r, c, mask, carry, med, supply_used)`
-
-| Biến | Miền giá trị | Ý nghĩa |
-|---|---|---|
-| (r, c) | H×W | Vị trí agent |
-| mask | 0 … 2^N − 1 | Bit i = 1 nếu nạn nhân i đã được đưa về G |
-| carry | 0 … N | 0: không mang ai; i+1: đang mang nạn nhân i |
-| med | 0 … K_max | Số medkit còn lại |
-| supply_used | {0, 1} | Ô supply đã được dùng chưa |
-
-Số state tối đa: `|S| = H·W·2^N·(N+1)·(K_max+1)·2`, với `K_max = medkits ban đầu + 1 (nếu có ô M)`.
-
-**Action** (6 action rời rạc): Lên, Xuống, Trái, Phải, Pickup, Drop.
-
-- *Pickup* hợp lệ khi agent đứng trên nạn nhân i chưa cứu, đang không mang ai, và (nạn nhân i không cần medkit hoặc `med > 0`). Hiệu ứng: `carry = i+1`; nếu nạn nhân cần medkit thì `med ← med − 1`.
-- *Drop* hợp lệ khi agent đứng ở `G` và `carry > 0`. Hiệu ứng: đặt bit tương ứng trong `mask`, `carry = 0`.
-- Bước vào ô `M` lần đầu: `med ← med + 1`, `supply_used = 1` (tự động).
-- Hành động không hợp lệ (đâm tường, Pickup/Drop sai chỗ): agent đứng yên, bị phạt.
-
-**Transition**: xác định (deterministic), `s' = f(s, a)`.
-
-**Reward**
-
-| Sự kiện | Reward |
-|---|---|
-| Mỗi bước | −1 |
-| Hành động không hợp lệ | −5 |
-| Bước vào ô D | −10 |
-| Drop nạn nhân i về G | `+R_i` |
-| Cứu đủ N nạn nhân | +100 |
-
-Hai chế độ reward tạo hai policy cạnh tranh:
-- **Mode A (cứu gần trước)**: `R_i = 50` cho mọi nạn nhân.
-- **Mode B (ưu tiên giá trị cao)**: `R_i = 50 · value_i`.
-
-**Terminal / truncation**
-- *Terminated*: `mask = 2^N − 1` (cứu hết).
-- *Truncated*: hết `max_steps`. Ô D chỉ bị phạt, không kết thúc episode.
-
-**Discount**: γ = 0,99.
-
-### 2. Tính Markov
-
-State chứa đủ thông tin để xác định phân phối của trạng thái kế tiếp và reward:
-- `mask` cho biết ai đã được cứu, nên không cần nhớ lịch sử đường đi.
-- `carry` và `med` quyết định Pickup/Drop có hợp lệ và reward tiếp theo.
-- `supply_used` đảm bảo ô supply chỉ bổ sung đúng 1 lần.
-
-Do đó `P(s' | s, a, lịch sử) = P(s' | s, a)`. Giới hạn thời gian `max_steps` được xử lý như *truncation* (không đưa bước thời gian vào state), nên không phá tính Markov của MDP gốc.
-
-### 3. Ba map/cấu hình tăng dần độ khó
-
-| Map | Lưới | N | Medkit đầu | Nạn nhân cần medkit | Ô M | \|S\| | \|A\| | max_steps | Số bước tối thiểu |
-|---|---|---|---|---|---|---|---|---|---|
-| map1 | 5×5 | 2 | – | 0 | không | 600 | 6 | 30 | 24 |
-| map2 | 6×6 | 3 | 1 | 2 | có | 6.912 | 6 | 45 | 33 |
-| map3 | 7×7 | 4 | 2 | 3 | có | 31.360 | 6 | 140 | 105 |
-
-Ánh xạ với các setting bắt buộc của đề:
-
-| Setting của đề | Map |
-|---|---|
-| 1. 2 nạn nhân, không giới hạn nguồn lực | map1 |
-| 2. 3–4 nạn nhân, mang 1 người/lần | map2, map3 |
-| 3. Một số nạn nhân cần medkit, medkit hữu hạn | map2, map3 |
-| 4. Ô supply bổ sung đúng 1 medkit, phải đi đường vòng | map2 (31 → 33 bước, +2); map3 có ô supply nhưng nằm trên đường tối ưu (không đi vòng) |
-
-Số bước tối thiểu được tính bằng BFS trên không gian state (đã gồm Pickup/Drop). Ở map3, ô `D` có đường né (mở tường ô (5,4)), nên đi qua `D` là lựa chọn của policy chứ không bắt buộc.
-
-### 4. Policy tối ưu tham chiếu (Value Iteration, γ = 0,99)
-
-| Map | Mode | Thứ tự cứu | Số bước | Return |
-|---|---|---|---|---|
-| map1 | A | V0 → V1 | 24 | 176 |
-| map1 | B | V0 → V1 | 24 | 276 |
-| map2 | A | V2 → V1 → V0 | 33 | 217 |
-| map2 | B | V0 → V1 → V2 | 33 | 367 |
-| map3 | A | V1 → V2 → V3 → V0 | 109 | 191 |
-| map3 | B | V1 → V0 → V2 → V3 | 109 | 391 |
-
-Ở map2 và map3, hai mode cho thứ tự cứu khác nhau (A ưu tiên nạn nhân gần, B ưu tiên giá trị cao). Vì cả hai cứu đủ trong cùng số bước nên return chưa chiết khấu bằng nhau giữa các thứ tự; sự khác biệt chỉ thể hiện qua chiết khấu γ và thời điểm giao từng nạn nhân.
-
-### 5. Baseline ngẫu nhiên (200 episode)
+**Baseline ngẫu nhiên (200 episode)**
 
 | Map | Return trung bình | Số nạn nhân cứu trung bình |
 |---|---|---|
@@ -194,4 +141,4 @@ Số bước tối thiểu được tính bằng BFS trên không gian state (đ
 | map2 | ≈ −185 | ≈ 0,01 / 3 |
 | map3 | ≈ −612 | ≈ 0,07 / 4 |
 
-Policy ngẫu nhiên gần như không cứu được ai, nên là mốc dưới để đánh giá Q-learning và Monte Carlo.
+Policy ngẫu nhiên gần như không cứu được ai, nên là mốc dưới để đánh giá Q-learning và Monte Carlo. Kết quả huấn luyện của hai thuật toán nằm trong `results/` và được vẽ bằng `plot_results.py`.

@@ -94,7 +94,6 @@ class Demo:
         pygame.display.set_caption("Rescue Mission")
         self.load(map_name, mode)
 
-    # ------------------------------------------------------------------
     def message(self, text):
         self.screen.fill(C_BG)
         self.screen.blit(self.f_b.render(text, True, C_TEXT), (30, 280))
@@ -161,7 +160,6 @@ class Demo:
         self.ensure_q()
         self.apply(int(np.argmax(self.Q[self.s])))
 
-    # ------------------------------------------------------------------
     def draw_board(self):
         e, cs = self.env, self.cell
         for r in range(e.H):
@@ -243,7 +241,6 @@ class Demo:
         line("Chú giải: ! nguy hiểm | + ô medkit | G điểm an toàn", self.f_s, C_GREY, dy=20)
         line("V+ = nạn nhân cần medkit | v = giá trị", self.f_s, C_GREY, dy=20)
 
-    # ------------------------------------------------------------------
     def run(self):
         clock = pygame.time.Clock()
         running = True
