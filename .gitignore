@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 
 # Virtual environments
 .venv/
@@ -33,3 +34,40 @@ my_dataset/
 *.log
 *.tmp
 .DS_Store
+=======
+
+# Virtual environments
+.venv/
+.venv-*/
+venv/
+venv*/
+env/
+
+# Python cache & build files
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+
+# Jupyter Notebook checkpoints
+.ipynb_checkpoints/
+*/.ipynb_checkpoints/
+
+# IDE settings
+.vscode/
+.idea/
+
+# Dataset
+data/
+my_dataset/
+
+# Model files and experimental results
+*.pkl
+*.npy
+
+# Temporary files
+*.log
+*.tmp
+.DS_Store
+>>>>>>> 7550df214ac510c52d66032d79bf74ebf28c11e6

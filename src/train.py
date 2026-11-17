@@ -1,12 +1,3 @@
-"""
-Bước 5-6: huấn luyện nhiều seed, nhiều thuật toán, hai mode reward (A/B), các biến thể reward.
-Mỗi job lưu 1 file .pkl trong thư mục results/ để plot_results.py đọc lại.
-
-Ví dụ:
-  python train.py                                   # chạy đầy đủ (3 map, A/B, QL + MC, 5 seed)
-  python train.py --maps map1 --seeds 3 --scale 0.2 # chạy thử nhanh
-  python train.py --variants base low_hazard        # thêm biến thể reward
-"""
 import argparse
 import os
 import pickle

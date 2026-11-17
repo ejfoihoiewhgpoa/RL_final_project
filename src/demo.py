@@ -1,10 +1,40 @@
+"""
+Demo Rescue Mission: xem agent (Q-learning) tự chạy HOẶC tự mình chơi.
+
+  python src/demo.py                      # agent tự chạy, map1 / mode A
+  python src/demo.py --map map2 --mode B
+  python src/demo.py --play               # vào thẳng chế độ người chơi
+  python src/demo.py --prepare            # huấn luyện sẵn mọi map/mode rồi thoát
+
+Phím chung : P đổi AGENT <-> NGƯỜI CHƠI | R chạy lại | A / B đổi mode | 1 / 2 / 3 đổi map | ESC thoát
+Chế độ agent    : SPACE tạm dừng | → đi 1 bước | ↑ / ↓ tốc độ
+Chế độ người chơi: mũi tên để di chuyển
+"""
 import argparse
 import os
+import unicodedata
+
 import numpy as np
 import pygame
 
-from rescue_mission import RescueEnv, MOVES
+import rescue_mission as _rm
+from rescue_mission import RescueEnv
 from agents import QLearningAgent, evaluate
+
+# ưu tiên ACTION_NAMES (thường có đủ mọi action); không có thì dùng MOVES
+MOVES = getattr(_rm, "ACTION_NAMES", None) or getattr(_rm, "MOVES")
+DELTA_NAME = {(-1, 0): "Lên", (1, 0): "Xuống", (0, -1): "Trái", (0, 1): "Phải"}
+
+
+def action_label(i):
+    """Tên action i; không lỗi nếu MOVES thiếu key hoặc chứa (dr, dc)."""
+    try:
+        v = MOVES[i]
+    except (KeyError, IndexError, TypeError):
+        return f"action {i}"
+    if isinstance(v, (tuple, list)) and len(v) == 2:
+        return DELTA_NAME.get(tuple(v), str(v))
+    return str(v)
 
 EPISODES = {"map1": 20000, "map2": 50000, "map3": 60000}
 QDIR = "qtables"
@@ -14,6 +44,7 @@ C_WALL, C_HAZ, C_BASE = (70, 70, 70), (244, 166, 166), (168, 224, 168)
 C_SUP, C_START = (169, 201, 245), (255, 243, 168)
 C_VIC, C_VIC_DONE = (255, 179, 71), (150, 200, 150)
 C_AGENT, C_TEXT = (40, 90, 200), (30, 30, 30)
+C_GREY = (90, 90, 90)
 
 
 def q_path(map_name, mode):
@@ -38,15 +69,30 @@ def make_font(size, bold=False):
     return pygame.font.SysFont("segoeui,arial,dejavusans,freesans", size, bold=bold)
 
 
+def norm(text):
+    text = unicodedata.normalize("NFD", str(text).replace("đ", "d").replace("Đ", "D"))
+    return "".join(c for c in text if unicodedata.category(c) != "Mn").lower().strip()
+
+
+# (các tên action có thể có, phím mũi tên tương ứng)
+ARROWS = [
+    ({"len", "up", "north", "u"}, pygame.K_UP),
+    ({"xuong", "down", "south", "d"}, pygame.K_DOWN),
+    ({"trai", "left", "west", "l"}, pygame.K_LEFT),
+    ({"phai", "right", "east", "r"}, pygame.K_RIGHT),
+]
+
+
 class Demo:
-    def __init__(self, map_name, mode, fps, retrain=False):
+    def __init__(self, map_name, mode, fps, retrain=False, human=False):
         pygame.init()
         self.fps = fps
-        self.map_name, self.mode = map_name, mode
+        self.retrain = retrain
+        self.human = human
         self.f_s, self.f_m, self.f_b = make_font(15), make_font(18), make_font(22, True)
         self.screen = pygame.display.set_mode((1000, 620))
-        pygame.display.set_caption("Rescue Mission – demo policy")
-        self.load(map_name, mode, retrain)
+        pygame.display.set_caption("Rescue Mission")
+        self.load(map_name, mode)
 
     # ------------------------------------------------------------------
     def message(self, text):
@@ -55,31 +101,65 @@ class Demo:
         pygame.display.flip()
         pygame.event.pump()
 
-    def load(self, map_name, mode, retrain=False):
+    def load(self, map_name, mode):
         self.map_name, self.mode = map_name, mode
         self.env = RescueEnv(map_name, reward_mode=mode)
-        self.Q = get_q(map_name, mode, retrain, self.message)
+        self.Q = None                                   # chỉ nạp/huấn luyện khi agent cần chạy
         e = self.env
         self.cell = min(88, 560 // max(e.H, e.W))
         self.ox, self.oy = 20, 20
+        self.names = [action_label(i) for i in range(e.n_actions)]
+        self.key_to_action = self.build_keys()
         self.restart()
+
+    def build_keys(self):
+        mapping = {}
+        for gi, (aliases, key) in enumerate(ARROWS):
+            idx = next((i for i, n in enumerate(self.names) if norm(n) in aliases), None)
+            if idx is None and gi < len(self.names):    # không nhận ra tên: đoán theo thứ tự lên/xuống/trái/phải
+                idx = gi
+            if idx is not None:
+                mapping[key] = idx
+        # các action còn lại (ngoài 4 hướng) lần lượt gán SPACE, ENTER, E, X
+        spare = [pygame.K_SPACE, pygame.K_RETURN, pygame.K_e, pygame.K_x]
+        used = set(mapping.values())
+        for i in range(len(self.names)):
+            if i not in used and spare:
+                mapping[spare.pop(0)] = i
+        return mapping
+
+    def ensure_q(self):
+        if self.Q is None:
+            self.Q = get_q(self.map_name, self.mode, self.retrain, self.message)
+            self.retrain = False
 
     def restart(self):
         self.s, _ = self.env.reset(seed=0)
-        self.total, self.last_action, self.done, self.status = 0.0, "-", False, ""
+        self.total, self.last_r, self.steps = 0.0, 0.0, 0
+        self.last_action, self.done, self.status = "-", False, ""
         self.paused, self.timer = False, 0
 
-    def step(self):
+    def apply(self, a):
+        """Thực hiện action a (dùng chung cho agent và người chơi)."""
         if self.done:
             return
-        a = int(np.argmax(self.Q[self.s]))
         self.s, r, te, tr, _ = self.env.step(a)
         self.total += r
-        self.last_action = MOVES[a]
+        self.last_r = r
+        self.steps += 1
+        self.last_action = self.names[a]
         if te:
-            self.done, self.status = True, "HOÀN THÀNH: đã cứu hết nạn nhân"
+            self.done = True
+            self.status = "HOÀN THÀNH: đã cứu hết nạn nhân"
         elif tr:
             self.done, self.status = True, "HẾT GIỜ (max_steps)"
+
+    def step(self):
+        """Một bước do agent chọn theo Q-table."""
+        if self.done:
+            return
+        self.ensure_q()
+        self.apply(int(np.argmax(self.Q[self.s])))
 
     # ------------------------------------------------------------------
     def draw_board(self):
@@ -125,11 +205,15 @@ class Demo:
         e = self.env
         x = self.ox + e.W * self.cell + 30
         y = 20
+
         def line(text, font=None, color=C_TEXT, dy=26):
             nonlocal y
             self.screen.blit((font or self.f_m).render(text, True, color), (x, y))
             y += dy
+
         line(f"Rescue Mission – {self.map_name}", self.f_b, dy=34)
+        who = "NGƯỜI CHƠI" if self.human else "AGENT (Q-learning)"
+        line(f"Chế độ: {who}", color=(20, 90, 170))
         line(f"Mode {self.mode}: " + ("cứu gần trước" if self.mode == "A" else "ưu tiên giá trị cao"))
         line(f"Bước: {e.t} / {e.max_steps}")
         line(f"Medkit còn lại: {e.med}   (ô M đã dùng: {'có' if e.supply_used else 'chưa'})")
@@ -137,18 +221,27 @@ class Demo:
         line(f"Đang mang: {carry}")
         saved = [f"V{i}" for i in range(e.N) if (e.mask >> i) & 1]
         line(f"Đã cứu: {', '.join(saved) if saved else '-'}  ({len(saved)}/{e.N})")
-        line(f"Action vừa rồi: {self.last_action}")
+        line(f"Action vừa rồi: {self.last_action}   (reward {self.last_r:+.0f})")
         line(f"Tổng reward: {self.total:.0f}", dy=34)
         if self.status:
             ok = self.status.startswith("HOÀN")
-            line(self.status, self.f_m, (20, 130, 20) if ok else (180, 30, 30), dy=34)
-        for t in ("Phím:", "SPACE  tạm dừng / chạy", "→  đi 1 bước      R  chạy lại",
-                  "A / B  đổi mode      1 / 2 / 3  đổi map", "↑ / ↓  tốc độ (" + f"{self.fps} bước/giây)",
-                  "ESC  thoát"):
-            line(t, self.f_s, (90, 90, 90), dy=22)
+            line(self.status, self.f_m, (20, 130, 20) if ok else (180, 30, 30), dy=30)
+        if self.human:
+            arrow_keys = {k for _, k in ARROWS}
+            extras = tuple(f"{pygame.key.name(k).upper()}  =  {self.names[a]}"
+                           for k, a in self.key_to_action.items() if k not in arrow_keys)
+            hints = (("Phím:", "Mũi tên  di chuyển") + extras +
+                     ("P  chuyển sang AGENT      R  chơi lại",
+                      "A / B  đổi mode      1 / 2 / 3  đổi map", "ESC  thoát"))
+        else:
+            hints = ("Phím:", "SPACE  tạm dừng / chạy", "→  đi 1 bước      R  chạy lại",
+                     "P  chuyển sang NGƯỜI CHƠI", "A / B  đổi mode      1 / 2 / 3  đổi map",
+                     f"↑ / ↓  tốc độ ({self.fps} bước/giây)", "ESC  thoát")
+        for t in hints:
+            line(t, self.f_s, C_GREY, dy=22)
         y += 6
-        line("Chú giải: ! nguy hiểm | + ô medkit | G điểm an toàn", self.f_s, (90, 90, 90), dy=20)
-        line("V+ = nạn nhân cần medkit | v = giá trị", self.f_s, (90, 90, 90), dy=20)
+        line("Chú giải: ! nguy hiểm | + ô medkit | G điểm an toàn", self.f_s, C_GREY, dy=20)
+        line("V+ = nạn nhân cần medkit | v = giá trị", self.f_s, C_GREY, dy=20)
 
     # ------------------------------------------------------------------
     def run(self):
@@ -163,10 +256,9 @@ class Demo:
                     k = ev.key
                     if k == pygame.K_ESCAPE:
                         running = False
-                    elif k == pygame.K_SPACE:
-                        self.paused = not self.paused
-                    elif k == pygame.K_RIGHT:
-                        self.paused = True; self.step()
+                    elif k == pygame.K_p:
+                        self.human = not self.human
+                        self.restart()
                     elif k == pygame.K_r:
                         self.restart()
                     elif k == pygame.K_a:
@@ -175,11 +267,19 @@ class Demo:
                         self.load(self.map_name, "B")
                     elif k in (pygame.K_1, pygame.K_2, pygame.K_3):
                         self.load({pygame.K_1: "map1", pygame.K_2: "map2", pygame.K_3: "map3"}[k], self.mode)
+                    elif self.human:
+                        if k in self.key_to_action:
+                            self.apply(self.key_to_action[k])
+                    elif k == pygame.K_SPACE:
+                        self.paused = not self.paused
+                    elif k == pygame.K_RIGHT:
+                        self.paused = True
+                        self.step()
                     elif k == pygame.K_UP:
                         self.fps = min(60, self.fps + 1)
                     elif k == pygame.K_DOWN:
                         self.fps = max(1, self.fps - 1)
-            if not self.paused and not self.done:
+            if not self.human and not self.paused and not self.done:
                 self.timer += dt
                 if self.timer >= 1000 / self.fps:
                     self.timer = 0
@@ -196,6 +296,7 @@ def main():
     ap.add_argument("--map", default="map1", choices=list(EPISODES))
     ap.add_argument("--mode", default="A", choices=["A", "B"])
     ap.add_argument("--fps", type=int, default=4, help="số bước agent đi mỗi giây")
+    ap.add_argument("--play", action="store_true", help="bắt đầu ở chế độ người chơi")
     ap.add_argument("--retrain", action="store_true", help="huấn luyện lại, ghi đè Q-table")
     ap.add_argument("--prepare", action="store_true", help="huấn luyện sẵn mọi map/mode rồi thoát")
     ap.add_argument("--screenshot", help="(kiểm thử) chạy N bước, lưu ảnh rồi thoát")
@@ -211,11 +312,13 @@ def main():
                 print("  ->", evaluate(env, Q, episodes=1))
         return
 
-    demo = Demo(args.map, args.mode, args.fps, args.retrain)
+    demo = Demo(args.map, args.mode, args.fps, args.retrain, human=args.play)
     if args.screenshot:
         for _ in range(args.steps):
             demo.step()
-        demo.screen.fill(C_BG); demo.draw_board(); demo.draw_panel()
+        demo.screen.fill(C_BG)
+        demo.draw_board()
+        demo.draw_panel()
         pygame.image.save(demo.screen, args.screenshot)
         return
     demo.run()

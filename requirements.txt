@@ -1,3 +1,9 @@
+<<<<<<< HEAD
 gymnasium
 numpy
 matplotlib
+=======
+gymnasium
+numpy
+matplotlib
+>>>>>>> 7550df214ac510c52d66032d79bf74ebf28c11e6

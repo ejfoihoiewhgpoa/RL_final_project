@@ -3,7 +3,6 @@ import numpy as np
 
 from rescue_mission import RescueEnv, ACTION_NAMES
 
-
 def epsilon_at(ep, episodes, eps_start, eps_end, decay_frac):
     """Epsilon giảm tuyến tính trong decay_frac * episodes episode đầu, sau đó giữ eps_end."""
     n = max(1, int(decay_frac * episodes))
@@ -11,10 +10,8 @@ def epsilon_at(ep, episodes, eps_start, eps_end, decay_frac):
         return eps_end
     return eps_start + (eps_end - eps_start) * ep / n
 
-
 def n_rescued(env):
     return bin(env.mask).count("1")
-
 
 def eps_greedy(Q, s, eps, rng, n_actions):
     if rng.random() < eps:
@@ -271,5 +268,7 @@ if __name__ == "__main__":
 
     if env.n_states <= 5000:
         Qpi, it, n = policy_iteration(env)
+        print(f"Policy Iter: ({it} vòng, {n} state tới được)", evaluate(env, Qpi),
+              rollout(env, Qpi)["order"])
         print(f"Policy Iter: ({it} vòng, {n} state tới được)", evaluate(env, Qpi),
               rollout(env, Qpi)["order"])
