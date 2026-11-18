@@ -23,11 +23,13 @@ def solve(e,gamma,iters=2000):
         d=0
         for s in seen:
             best=max(trans[(s,a)][1]+(0 if trans[(s,a)][2] else gamma*V[trans[(s,a)][0]]) for a in range(6))
-            d=max(d,abs(best-V[s])); V[s]=best
-        if d<1e-6: break
+            d=max(d,abs(best-V[s]))
+            V[s]=best
+        if d<1e-6: 
+            break
     # rollout
     s=s0; order=[]; G=0; steps=0; haz=0
-    while steps<400:
+    while steps<400: #đi thử theo policy
         a=max(range(6),key=lambda a: trans[(s,a)][1]+(0 if trans[(s,a)][2] else gamma*V[trans[(s,a)][0]]))
         s2,r,te=trans[(s,a)]
         G+=r; steps+=1

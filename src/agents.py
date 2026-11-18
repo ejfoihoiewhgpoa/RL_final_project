@@ -62,7 +62,7 @@ class QLearningAgent:
     def policy(self):
         return np.argmax(self.Q, axis=1)
 
-# Monte Carlo control (on-policy, first-visit, epsilon-soft)
+# Monte Carlo (on-policy, first-visit, epsilon-soft)
 class MonteCarloAgent:
     def __init__(self, env, gamma=0.99, eps_start=1.0, eps_end=0.05,
                  decay_frac=0.8, seed=0):
@@ -151,7 +151,6 @@ def build_model(env):
         env.reset()
     return s0, trans
 
-
 def policy_iteration(env, gamma=0.99, theta=1e-8, max_iter=200):
     """Trả về (Q đầy đủ kích thước n_states x n_actions, số vòng lặp, số state tới được).
     Cài đặt vector hóa bằng numpy nên nhanh hơn nhiều so với vòng for thuần Python."""
@@ -216,7 +215,6 @@ def evaluate(env, Q, episodes=1, seed=12345):
         steps.append(t); success.append(float(te))
     return dict(mean_return=float(np.mean(rets)), mean_rescued=float(np.mean(rescued)),
                 success_rate=float(np.mean(success)), mean_steps=float(np.mean(steps)))
-
 
 def rollout(env, Q, max_len=None, verbose=False):
     """Một episode greedy. Trả về đường đi, thứ tự cứu và tổng reward."""
