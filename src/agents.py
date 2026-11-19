@@ -4,7 +4,6 @@ import numpy as np
 from rescue_mission import RescueEnv, ACTION_NAMES
 
 def epsilon_at(ep, episodes, eps_start, eps_end, decay_frac):
-    """Epsilon giảm tuyến tính trong decay_frac * episodes episode đầu, sau đó giữ eps_end."""
     n = max(1, int(decay_frac * episodes))
     if ep >= n:
         return eps_end
@@ -117,7 +116,7 @@ class MonteCarloAgent:
     def policy(self):
         return np.argmax(self.Q, axis=1)
 
-# Policy Iteration (có mô hình, chỉ nên dùng trên map nhỏ)
+# Policy Iteration 
 def _set_state(env, s):
     d = env.decode(s)
     env.pos, env.mask, env.carry = d["pos"], d["mask"], d["carry"]
@@ -125,8 +124,6 @@ def _set_state(env, s):
 
 
 def build_model(env):
-    """Duyệt các state tới được từ state đầu; trả về trans[s][a] = (s', r, terminated).
-    State kết thúc (đã cứu đủ) không được mở rộng thêm."""
     saved_max = env.max_steps
     full = 2 ** env.N - 1
     env.max_steps = 10 ** 9              # tắt truncation khi dựng mô hình
@@ -152,8 +149,6 @@ def build_model(env):
     return s0, trans
 
 def policy_iteration(env, gamma=0.99, theta=1e-8, max_iter=200):
-    """Trả về (Q đầy đủ kích thước n_states x n_actions, số vòng lặp, số state tới được).
-    Cài đặt vector hóa bằng numpy nên nhanh hơn nhiều so với vòng for thuần Python."""
     s0, trans = build_model(env)
     states = list(trans.keys())
     idx = {s: i for i, s in enumerate(states)}
@@ -199,10 +194,6 @@ def policy_iteration(env, gamma=0.99, theta=1e-8, max_iter=200):
 
 # Đánh giá và trích xuất đường đi
 def evaluate(env, Q, episodes=1, seed=12345):
-    """Chạy policy greedy theo Q. Trả về thống kê.
-    Env và policy greedy đều deterministic nên 1 episode là đủ; tăng `episodes`
-    chỉ có ý nghĩa nếu sau này env có yếu tố ngẫu nhiên.
-    Lưu ý: state chưa từng được thăm có Q = 0 nên argmax sẽ chọn action 0 (Lên)."""
     rets, rescued, steps, success = [], [], [], []
     for ep in range(episodes):
         s, _ = env.reset(seed=seed + ep)
@@ -235,7 +226,6 @@ def rollout(env, Q, max_len=None, verbose=False):
             env.render(); print("-> action:", ACTION_NAMES[a], "reward:", r, "\n")
     return dict(path=path, actions=actions, order=order, total_return=G,
                 steps=len(actions), terminated=bool(te))
-
 
 if __name__ == "__main__":
     import sys

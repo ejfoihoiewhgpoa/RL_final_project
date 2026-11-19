@@ -36,11 +36,6 @@ class RescueEnv(gym.Env):
 
     def __init__(self, map_name="map1", map_file=DEFAULT_MAP_FILE,
                  reward_mode="A", reward_cfg=None, max_steps=None, render_mode=None):
-        """
-        map_name   : key trong file JSON (hoặc truyền thẳng 1 dict cấu hình)
-        reward_mode: 'A' = cứu gần trước (R_i như nhau)
-                     'B' = ưu tiên giá trị cao (R_i = rescue_base * value_i)
-        """
         super().__init__()
         assert render_mode in (None, "ansi"), "render_mode chỉ hỗ trợ None hoặc 'ansi'"
         cfg = load_maps(map_file)[map_name] if isinstance(map_name, str) else map_name
